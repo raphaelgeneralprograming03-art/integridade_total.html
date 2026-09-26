@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SROS // DIAGNOSTIC TOTAL ARMOR SUIT</title>
+    <title>SROS // FULL PRESSURE DIAGNOSTIC</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html { width: 100%; height: 100%; overflow: hidden; background-color: #040608; font-family: 'Courier New', Courier, monospace; color: #00e5ff; }
@@ -25,28 +25,28 @@
 <body>
 
     <div id="canvas-container">
-        <canvas id="totalSuitCanvas"></canvas>
+        <canvas id="pressureCanvas"></canvas>
     </div>
 
     <div class="hud-overlay">
-        <h1>SROS // FULL SUIT DIAGNOSTIC</h1>
-        <div class="telemetry-item"><span>VARREDURA FÍSICA:</span> <span id="status-scan" class="status-active">INTEGRIDADE NOMINAL</span></div>
-        <div class="telemetry-item"><span>MALHA ESTRUTURAL:</span> <span id="armor-val">100%</span></div>
-        <div class="telemetry-item"><span>CINETICA DE MEMBROS:</span> <span>CONECTADO</span></div>
-        <div class="telemetry-item"><span>POTÊNCIA DO REATOR:</span> <span id="power-val">1.21 GW</span></div>
-        <div class="telemetry-item"><span>CONSUMO ENERGIA:</span> <span id="dreno-val">2.2 kW/s</span></div>
+        <h1>SROS // PRESSURE DIAGNOSTIC</h1>
+        <div class="telemetry-item"><span>ESTADO COMPLEMENTAR:</span> <span id="status-scan" class="status-active">PRESSÃO ESTÁVEL</span></div>
+        <div class="telemetry-item"><span>PRESSÃO INTERNA:</span> <span id="press-val">4.30 PSI</span></div>
+        <div class="telemetry-item"><span>FLUXO DE O₂ INJETADO:</span> <span id="flow-val">0.45 L/min</span></div>
+        <div class="telemetry-item"><span>ESTANQUEIDADE MALHA:</span> <span id="leak-val">100% SECURE</span></div>
+        <div class="telemetry-item"><span>SUPRIMENTO DISPONÍVEL:</span> <span>96.4%</span></div>
     </div>
 
     <div class="legend">
-        <div class="legend-item"><span class="dot" style="background:#00e5ff;"></span>Chassi Externo do Traje (Mapeamento)</div>
-        <div class="legend-item"><span class="dot" style="background:#00ff66;"></span>Fluxo de Energia / Impulso Interno</div>
-        <div class="legend-item"><span class="dot" style="background:#ff3333;"></span>Sobrecarga nos Atuadores</div>
+        <div class="legend-item"><span class="dot" style="background:#00e5ff;"></span>Chassi do Traje Estabilizado</div>
+        <div class="legend-item"><span class="dot" style="background:#3399ff;"></span>Injeção Interna Base de O₂</div>
+        <div class="legend-item"><span class="dot" style="background:#ff3333;"></span>Vazamento Detectado no Membro</div>
     </div>
 
-    <button class="btn-action" id="trigger-overload">SOBRECARREGAR SISTEMA E CONVERSÃO</button>
+    <button class="btn-action" id="trigger-leak">SIMULAR MICROFISSURA NA PERNA ESQUERDA</button>
 
     <script>
-        const canvas = document.getElementById('totalSuitCanvas');
+        const canvas = document.getElementById('pressureCanvas');
         const ctx = canvas.getContext('2d');
 
         function redimensionar() {
@@ -56,22 +56,20 @@
         window.addEventListener('resize', redimensionar);
         redimensionar();
 
-        // Parâmetros do Sistema Completo
-        let modoSobrecarga = false;
-        let integridadeArmadura = 100.0;
-        let potenciaReator = 1.21;
-        let drenoEnergia = 2.2;
-        let cicloAnimacao = 0;
+        // Parâmetros de Pressurização Pneumática Interna
+        let vazamentoAtivo = false;
+        let pressaoInterna = 4.30;
+        let fluxoO2 = 0.45;
+        let cicloPulso = 0;
 
-        // Partículas que correm pelo interior de toda a extensão do traje
-        const particulasEnergia = [];
-        const maxParticulas = 80;
+        // Partículas que simulam a injeção gasosa de O2 expandindo dentro das pernas e braços
+        const gasesInternos = [];
+        const maxGases = 120;
 
-        // Estrutura geométrica do Traje Completo (Base proporcional para o desenho cibernético)
-        function obterEsqueletoTraje(centerX, centerY) {
+        // Coordenadas estruturais do Chassi Completo
+        function obterEstruturaTraje(centerX, centerY) {
             return {
                 capacete: { x: centerX, y: centerY - 140, r: 24 },
-                pescoco: { x1: centerX, y1: centerY - 116, x2: centerX, y2: centerY - 105 },
                 ombroE: { x: centerX - 45, y: centerY - 95 },
                 ombroD: { x: centerX + 45, y: centerY - 95 },
                 cotoveloE: { x: centerX - 60, y: centerY - 40 },
@@ -87,114 +85,189 @@
             };
         }
 
-        function criarParticulaEnergia(e) {
-            // Sorteia um membro do corpo para a energia percorrer de forma interna
+        function criarParticulaGas(e) {
             const caminhos = [
                 ['ombroE', 'cotoveloE', 'pulsoE'],
                 ['ombroD', 'cotoveloD', 'pulsoD'],
                 ['quadrilE', 'joelhoE', 'tornozeloE'],
-                ['quadrilD', 'joelhoD', 'tornozeloD']
+                ['quadrilD', 'joelhoD', 'tornozeloD'],
+                ['ombroE', 'capacete'],
+                ['ombroD', 'capacete']
             ];
-            const caminhoSorteado = caminhos[Math.floor(Math.random() * caminhos.length)];
             
+            let caminhoSorteado = caminhos[Math.floor(Math.random() * caminhos.length)];
+            if (vazamentoAtivo && Math.random() > 0.3) {
+                caminhoSorteado = ['quadrilE', 'joelhoE', 'tornozeloE'];
+            }
+
             return {
                 caminho: caminhoSorteado,
-                nóAtual: 0,
+                nó: 0,
                 x: e[caminhoSorteado[0]].x,
                 y: e[caminhoSorteado[0]].y,
                 progresso: 0,
-                velocidade: 0.02 + Math.random() * 0.03
+                velocidade: 0.015 + Math.random() * 0.02
             };
         }
 
-        const armorEl = document.getElementById('armor-val');
-        const powerEl = document.getElementById('power-val');
-        const drenoEl = document.getElementById('dreno-val');
+        const pressEl = document.getElementById('press-val');
+        const flowEl = document.getElementById('flow-val');
+        const leakEl = document.getElementById('leak-val');
         const statusEl = document.getElementById('status-scan');
+        const btnLeak = document.getElementById('trigger-leak');
+
+        // Evento do botão de simulação
+        btnLeak.addEventListener('click', () => {
+            vazamentoAtivo = !vazamentoAtivo;
+            if (vazamentoAtivo) {
+                btnLeak.innerText = "REPARAR MALHA / ESTANCAR VAZAMENTO";
+                btnLeak.style.borderColor = "#ff3333";
+                btnLeak.style.color = "#ff3333";
+            } else {
+                btnLeak.innerText = "SIMULAR MICROFISSURA NA PERNA ESQUERDA";
+                btnLeak.style.borderColor = "#00e5ff";
+                btnLeak.style.color = "#00e5ff";
+            }
+        });
 
         function draw() {
-            // Fundo escuro de hangar / laboratório espacial
+            // Hangar de diagnóstico escuro cibernético
             ctx.fillStyle = '#040608';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + 10; // Leve deslocamento para baixo para centrar o corpo humano inteiro
-            cicloAnimacao += 0.03;
+            const centerY = canvas.height / 2 + 10;
+            cicloPulso += 0.04;
 
-            const e = obterEsqueletoTraje(centerX, centerY);
+            const e = obterEstruturaTraje(centerX, centerY);
 
-            // Gerenciamento contínuo das partículas internas de energia do chassi
-            if (particulasEnergia.length < maxParticulas) {
-                particulasEnergia.push(criarParticulaEnergia(e));
+            // Gerencia partículas do fluxo gasoso interno
+            if (gasesInternos.length < maxGases) {
+                gasesInternos.push(criarParticulaGas(e));
             }
 
-            // Lógica física de sobrecarga nos conversores integrados
-            if (modoSobrecarga) {
-                potenciaReator = Math.min(4.85, potenciaReator + 0.05);
-                drenoEnergia = Math.min(45.8, drenoEnergia + 1.2);
-                integridadeArmadura = Math.max(76.2, integridadeArmadura - 0.2);
+            // Física em tempo real da resposta do regulador pneumático do traje
+            if (vazamentoAtivo) {
+                pressaoInterna = Math.max(3.12, pressaoInterna - 0.015);
+                fluxoO2 = Math.min(2.50, fluxoO2 + 0.04);
 
-                statusEl.innerText = "ALERTA: SOBRECARGA CRÍTICA";
+                statusEl.innerText = "CRÍTICO: DESPRESSURIZAÇÃO";
                 statusEl.className = "status-alert";
+                leakEl.innerText = "LEAK AT LEFT LEG";
+                leakEl.style.color = "#ff3333";
             } else {
-                potenciaReator = Math.max(1.21, potenciaReator - 0.1);
-                drenoEnergia = Math.max(2.2, drenoEnergia - 0.9);
-                if (integridadeArmadura < 100) integridadeArmadura += 0.05;
+                pressaoInterna = Math.min(4.30, pressaoInterna + 0.02);
+                fluxoO2 = Math.max(0.45, fluxoO2 - 0.05);
 
-                statusEl.innerText = "INTEGRIDADE NOMINAL";
+                statusEl.innerText = "PRESSÃO ESTÁVEL";
                 statusEl.className = "status-active";
                 statusEl.style.color = "#00ff66";
+                leakEl.innerText = "100% SECURE";
+                leakEl.style.color = "#00ff66";
             }
 
-            // ==========================================
-            // 1. DESENHAR O CONTORNO COMPLETO EXTERNO DO TRAJE (CHASSI 2D VETORIAL)
-            // ==========================================
-            ctx.strokeStyle = modoSobrecarga ? 'rgba(255, 51, 51, 0.4)' : 'rgba(0, 229, 255, 0.3)';
-            ctx.lineWidth = 2;
-            ctx.lineJoin = "round";
+            // Atualização dos dados do painel HUD
+            pressEl.innerText = pressaoInterna.toFixed(2) + " PSI";
+            flowEl.innerText = fluxoO2.toFixed(2) + " L/min";
 
-            // Desenho da Viseira e Capacete Inteiro
+            // ==========================================
+            // 1. DESENHAR O CONTORNO COMPLETO DO CHASSI EXTERNO
+            // ==========================================
+            ctx.lineWidth = 2;
+            
+            // Desenho do Tronco e Braços Padrão Ciano
+            ctx.strokeStyle = 'rgba(0, 229, 255, 0.3)';
             ctx.beginPath();
             ctx.arc(e.capacete.x, e.capacete.y, e.capacete.r, 0, Math.PI * 2);
-            ctx.stroke();
-            
-            // Placa do Peito e Ombro a Ombro
-            ctx.beginPath();
-            ctx.moveTo(e.ombroE.x, e.ombroE.y);
-            ctx.lineTo(e.ombroD.x, e.ombroD.y);
-            ctx.lineTo(e.quadrilD.x, e.quadrilD.y);
-            ctx.lineTo(e.quadrilE.x, e.quadrilE.y);
-            ctx.closePath();
+            ctx.moveTo(e.ombroE.x, e.ombroE.y); ctx.lineTo(e.ombroD.x, e.ombroD.y);
+            ctx.lineTo(e.quadrilD.x, e.quadrilD.y); ctx.lineTo(e.quadrilE.x, e.quadrilE.y); ctx.closePath();
+            ctx.moveTo(e.ombroE.x, e.ombroE.y); ctx.lineTo(e.cotoveloE.x, e.cotoveloE.y); ctx.lineTo(e.pulsoE.x, e.pulsoE.y);
+            ctx.moveTo(e.ombroD.x, e.ombroD.y); ctx.lineTo(e.cotoveloD.x, e.cotoveloD.y); ctx.lineTo(e.pulsoD.x, e.pulsoD.y);
+            ctx.moveTo(e.quadrilD.x, e.quadrilD.y); ctx.lineTo(e.joelhoD.x, e.joelhoD.y); ctx.lineTo(e.tornozeloD.x, e.tornozeloD.y);
             ctx.stroke();
 
-            // Braço Esquerdo Completo
-            ctx.beginPath();
-            ctx.moveTo(e.ombroE.x, e.ombroE.y);
-            ctx.lineTo(e.cotoveloE.x, e.cotoveloE.y);
-            ctx.lineTo(e.pulsoE.x, e.pulsoE.y);
-            ctx.stroke();
-
-            // Braço Direito Completo
-            ctx.beginPath();
-            ctx.moveTo(e.ombroD.x, e.ombroD.y);
-            ctx.lineTo(e.cotoveloD.x, e.cotoveloD.y);
-            ctx.lineTo(e.pulsoD.x, e.pulsoD.y);
-            ctx.stroke();
-
-            // Perna Esquerda Completa
+            // Segmento Isolado: Perna Esquerda (Pisca em vermelho em caso de vazamento)
+            ctx.strokeStyle = vazamentoAtivo && Math.floor(cicloPulso * 3) % 2 === 0 ? 'rgba(255, 51, 51, 1)' : 'rgba(0, 229, 255, 0.3)';
             ctx.beginPath();
             ctx.moveTo(e.quadrilE.x, e.quadrilE.y);
             ctx.lineTo(e.joelhoE.x, e.joelhoE.y);
             ctx.lineTo(e.tornozeloE.x, e.tornozeloE.y);
             ctx.stroke();
 
-            // Perna Direito Completa
-            ctx.beginPath();
-            ctx.moveTo(e.quadrilD.x, e.quadrilD.y);
-            ctx.lineTo(e.joelhoD.x, e.joelhoD.y);
-            ctx.lineTo(e.tornozeloD.x, e.tornozeloD.y);
-            ctx.stroke();
+            // Nível Global de Brilho Pneumático Interno
+            ctx.fillStyle = vazamentoAtivo ? 'rgba(255, 51, 51, 0.03)' : 'rgba(0, 229, 255, 0.03)';
+            ctx.fillRect(centerX - 45, centerY - 90, 90, 115);
 
-            // Reator Torácico Central Circular Unificado (Estilo Homem de Ferro)
-            ctx.strokeStyle = modoSobrecarga ? '#ff3333' : '#00e5ff';
-            ctx.fillStyle = modoSobrecarga ? 'rgba(255,51,51,0.2)' : 'rgba(0,229,255,0.2)';
+            // ==========================================
+            // 2. LÓGICA DAS PARTÍCULAS GASOSAS INTERNAS DE COMPENSAÇÃO (O₂)
+            // ==========================================
+            for (let i = gasesInternos.length - 1; i >= 0; i--) {
+                let p = gasesInternos[i];
+                p.progresso += p.velocidade;
+
+                if (p.progresso >= 1) {
+                    p.progresso = 0;
+                    p.nó++;
+                }
+
+                if (p.nó >= p.caminho.length - 1) {
+                    gasesInternos.splice(i, 1);
+                    continue;
+                }
+
+                let p1 = e[p.caminho[p.nó]];
+                let p2 = e[p.caminho[p.nó + 1]];
+
+                if (p1 && p2) {
+                    p.x = p1.x + (p2.x - p1.x) * p.progresso;
+                    p.y = p1.y + (p2.y - p1.y) * p.progresso;
+
+                    const eNaPernaE = p.caminho.includes('joelhoE');
+                    ctx.fillStyle = (vazamentoAtivo && eNaPernaE) ? '#ff3333' : '#3399ff';
+                    ctx.shadowColor = ctx.fillStyle;
+                    ctx.shadowBlur = 4;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            // ==========================================
+            // 3. PONTOS DE ARTICULAÇÃO E EFEITO DE VAZAMENTO
+            // ==========================================
+            Object.keys(e).forEach(k => {
+                let node = e[k];
+                const isPernaE = k === 'quadrilE' || k === 'joelhoE' || k === 'tornozeloE';
+                ctx.fillStyle = (vazamentoAtivo && isPernaE) ? '#ff3333' : '#00e5ff';
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, k === 'capacete' ? 4 : 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Spray Físico de Vazamento na Perna Esquerda
+            if (vazamentoAtivo) {
+                const leakX = e.joelhoE.x;
+                const leakY = e.joelhoE.y;
+
+                ctx.strokeStyle = '#ff3333';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(leakX, leakY, 8 + Math.sin(cicloPulso * 6) * 4, 0, Math.PI * 2);
+                ctx.stroke();
+
+                for (let k = 0; k < 4; k++) {
+                    let angle = Math.PI * 0.8 + (Math.random() - 0.5) * 1.5;
+                    let dist = Math.random() * 30 + 5;
+                    ctx.fillStyle = 'rgba(255, 51, 51, ' + Math.random() + ')';
+                    ctx.fillRect(leakX + Math.cos(angle) * dist, leakY + Math.sin(angle) * dist, 2, 2);
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+</body>
+</html>
